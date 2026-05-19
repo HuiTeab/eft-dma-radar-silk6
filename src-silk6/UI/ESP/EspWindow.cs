@@ -792,15 +792,9 @@ namespace eft_dma_radar.Silk6.UI.ESP
                 return null;
 
             var mw = Config.MemWrites;
-            var parts = new List<string>(4);
-            if (mw.NoRecoil && mw.NoRecoilAmount > 0) parts.Add("RCL");
-            if (mw.ThirdPerson) parts.Add("3P");
-            if (mw.WideLean.Enabled) parts.Add("LEAN");
+            var parts = new List<string>(2);
             if (mw.NightVision) parts.Add("NV");
             if (mw.ThermalVision) parts.Add("THERMAL");
-            if (mw.FullBright.Enabled) parts.Add("FB");
-            if (mw.OwlMode) parts.Add("OWL");
-            if (mw.MoveSpeed.Enabled) parts.Add("MOVE");
             if (parts.Count == 0)
                 return null;
             return $"({string.Join(") (", parts)})";

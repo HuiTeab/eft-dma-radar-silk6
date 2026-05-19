@@ -27,8 +27,44 @@ namespace eft_dma_radar.Silk6.UI.Panels
             if (UIControls.ToggleRow("Satellite Map", ref useSatellite, "Use satellite imagery from assets.tarkov.dev (falls back to SVG for unsupported maps)"))
             {
                 Config.UseSatelliteMap = useSatellite;
+                // Mutual exclusion — enabling satellite turns off tarkov.dev SVG (satellite wins).
+                if (useSatellite) Config.UseTarkovDevMap = false;
                 Config.MarkDirty();
                 Maps.MapManager.ReloadCurrent();
+            }
+
+            bool useTarkovDevSvg = Config.UseTarkovDevMap;
+            if (UIControls.ToggleRow("Tarkov.dev SVG Map", ref useTarkovDevSvg,
+                "Download maps from assets.tarkov.dev (Customs.svg, Woods.svg, ...) instead of using bundled SVGs.\n" +
+                "Cached persistently under %AppData%\\eft-dma-radar-silk6\\tarkov-dev-maps\\.\n" +
+                "Ignored while Satellite Map is on. Falls back to bundled SVG on download failure."))
+            {
+                Config.UseTarkovDevMap = useTarkovDevSvg;
+                if (useTarkovDevSvg) Config.UseSatelliteMap = false;
+                Config.MarkDirty();
+                Maps.MapManager.ReloadCurrent();
+            }
+
+            // Rotation control for tarkov.dev SVG maps (only meaningful when active).
+            if (Config.UseTarkovDevMap)
+            {
+                ImGui.Indent(16);
+                int rot = Config.TarkovDevMapRotation;
+                int rotIdx = rot switch { 90 => 1, 180 => 2, 270 => 3, _ => 0 };
+                string[] rotLabels = ["0° (raw)", "90° (left)", "180°", "270° (right)"];
+                ImGui.SetNextItemWidth(160);
+                if (ImGui.Combo("Rotation##TarkovDevRot", ref rotIdx, rotLabels, rotLabels.Length))
+                {
+                    int[] rotValues = [0, 90, 180, 270];
+                    Config.TarkovDevMapRotation = rotValues[rotIdx];
+                    Config.MarkDirty();
+                    Maps.MapManager.ReloadCurrent();
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Visual rotation applied to tarkov.dev SVG maps. tarkov.dev's site\n" +
+                                      "displays them rotated 180° via Leaflet's CRS; pick the orientation\n" +
+                                      "you prefer here. Markers re-align automatically.");
+                ImGui.Unindent(16);
             }
 
             DrawMapSetupSection();
@@ -326,7 +362,53 @@ namespace eft_dma_radar.Silk6.UI.Panels
                 cfg.Scale = scale;
 
             if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Runtime calibration — adjust until your player marker\naligns with your real world position. Not saved to disk.");
+                ImGui.SetTooltip("Runtime calibration — adjust until your player marker\naligns with your real world position. Click 'Save Calibration'\nbelow to persist these values across restarts.");
+
+            // Save / Reset buttons: persist (X, Y, Scale) per primary map ID. The web
+            // radar serves the live in-memory MapConfig each tick, so saved values flow
+            // to web clients on their next update without a manual refresh.
+            ImGui.Spacing();
+            string? primaryId = cfg.MapID.Count > 0 ? cfg.MapID[0] : null;
+            bool hasOverride = !string.IsNullOrWhiteSpace(primaryId)
+                && Config.MapCalibrationOverrides.ContainsKey(primaryId!);
+
+            ImGui.BeginDisabled(string.IsNullOrWhiteSpace(primaryId));
+            if (ImGui.Button("Save Calibration"))
+            {
+                Config.MapCalibrationOverrides[primaryId!] = new MapCalibration
+                {
+                    X = cfg.X,
+                    Y = cfg.Y,
+                    Scale = cfg.Scale,
+                };
+                Config.MarkDirty();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip($"Persist the current Map X / Y / Scale to disk under map id '{primaryId}'.\n" +
+                                  "Reloaded automatically on next startup. Web radar clients pick up\n" +
+                                  "the new values on their next tick.");
+            ImGui.EndDisabled();
+
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!hasOverride);
+            if (ImGui.Button("Reset to Bundled"))
+            {
+                Config.MapCalibrationOverrides.Remove(primaryId!);
+                Config.MarkDirty();
+                // Reload the map so the bundled defaults from the JSON file replace
+                // the in-memory overridden values.
+                Maps.MapManager.ReloadCurrent();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip($"Remove the saved calibration for '{primaryId}' and reload\n" +
+                                  "the bundled defaults from the map JSON file.");
+            ImGui.EndDisabled();
+
+            if (hasOverride)
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled("(saved)");
+            }
 
             UIControls.EndAdvanced();
         }

@@ -14,12 +14,20 @@ namespace eft_dma_radar.Silk6.UI.Maps
     /// </summary>
     internal static class MapManager
     {
+        /// <summary>Which renderer backs the currently loaded map.</summary>
+        private enum MapSourceMode
+        {
+            LocalSvg,
+            Satellite,
+            TarkovDevSvg,
+        }
+
         private static FrozenDictionary<string, MapConfig> _configs =
             FrozenDictionary<string, MapConfig>.Empty;
 
         private static IRadarMap? _currentMap;
         private static string? _currentMapId;
-        private static bool _currentIsSatellite;
+        private static MapSourceMode _currentSourceMode;
         private static MapConfig? _currentRawConfig;
         private static SatelliteMapCatalog.Entry? _currentSatelliteEntry;
         private static MapConfig? _currentSatelliteConfig;
@@ -93,6 +101,25 @@ namespace eft_dma_radar.Silk6.UI.Maps
                         continue;
                     }
 
+                    // Apply any user-saved calibration override (X / Y / Scale) so the
+                    // bundled defaults can be fine-tuned without editing the JSON file.
+                    // First matching map-id wins (configs are shared between IDs).
+                    var overrides = SilkProgram.Config?.MapCalibrationOverrides;
+                    if (overrides is not null)
+                    {
+                        foreach (var id in config.MapID)
+                        {
+                            if (!string.IsNullOrWhiteSpace(id) && overrides.TryGetValue(id, out var ov))
+                            {
+                                config.X = ov.X;
+                                config.Y = ov.Y;
+                                config.Scale = ov.Scale;
+                                Log.WriteLine($"[MapManager] Applied calibration override for '{id}': X={ov.X:0.00} Y={ov.Y:0.00} Scale={ov.Scale:0.0000}");
+                                break;
+                            }
+                        }
+                    }
+
                     foreach (var id in config.MapID)
                     {
                         if (!string.IsNullOrWhiteSpace(id))
@@ -136,13 +163,21 @@ namespace eft_dma_radar.Silk6.UI.Maps
             if (string.IsNullOrEmpty(mapId))
                 return;
 
-            bool wantSatellite = SilkProgram.Config.UseSatelliteMap && SatelliteMapCatalog.IsSupported(mapId);
+            // Source-mode selection priority:
+            //   1. Satellite tiles (if user opted in + catalog has tile entry)
+            //   2. tarkov.dev SVG (if user opted in + catalog has SVG entry)
+            //   3. Bundled local SVG (default fallback — always available)
+            var wantMode = MapSourceMode.LocalSvg;
+            if (SilkProgram.Config.UseSatelliteMap && SatelliteMapCatalog.IsSupported(mapId))
+                wantMode = MapSourceMode.Satellite;
+            else if (SilkProgram.Config.UseTarkovDevMap && TarkovDevSvgCatalog.IsSupported(mapId))
+                wantMode = MapSourceMode.TarkovDevSvg;
 
             lock (_lock)
             {
                 // Already loaded with same mode?
                 if (string.Equals(_currentMapId, mapId, StringComparison.OrdinalIgnoreCase)
-                    && _currentIsSatellite == wantSatellite)
+                    && _currentSourceMode == wantMode)
                     return;
 
                 // Already loading?
@@ -184,33 +219,60 @@ namespace eft_dma_radar.Silk6.UI.Maps
                 _isLoading = true;
                 var capturedConfig = config;
                 var capturedId = mapId;
-                bool capturedSatellite = wantSatellite;
+                var capturedMode = wantMode;
 
                 Task.Run(() =>
                 {
                     try
                     {
                         var sw = Stopwatch.StartNew();
-                        IRadarMap map;
-                        if (capturedSatellite && SatelliteMapCatalog.TryGet(capturedId, out var entry))
+                        IRadarMap? map = null;
+
+                        switch (capturedMode)
                         {
-                            Log.WriteLine($"[MapManager] Loading satellite map '{capturedId}' ({entry.CacheKey})...");
-                            var satConfig = SatelliteMapCatalog.BuildConfig(capturedId, capturedConfig, entry);
-                            map = new SatelliteMap(capturedId, satConfig, entry);
-                        }
-                        else
-                        {
-                            Log.WriteLine($"[MapManager] Loading map '{capturedId}' ({capturedConfig.Name})...");
-                            map = new RadarMap(MapsDir, capturedId, capturedConfig);
+                            case MapSourceMode.Satellite when SatelliteMapCatalog.TryGet(capturedId, out var entry):
+                                Log.WriteLine($"[MapManager] Loading satellite map '{capturedId}' ({entry.CacheKey})...");
+                                var satConfig = SatelliteMapCatalog.BuildConfig(capturedId, capturedConfig, entry);
+                                map = new SatelliteMap(capturedId, satConfig, entry);
+                                break;
+
+                            case MapSourceMode.TarkovDevSvg when TarkovDevSvgCatalog.TryGet(capturedId, out var tdEntry):
+                                Log.WriteLine($"[MapManager] Loading tarkov.dev SVG map '{capturedId}' ({tdEntry.NameId})...");
+                                var svgPath = TarkovDevMapsClient.EnsureSvgCached(tdEntry);
+                                if (!string.IsNullOrEmpty(svgPath))
+                                {
+                                    try
+                                    {
+                                        // MapConfig is computed inside the constructor from the
+                                        // rasterized image dimensions + catalog bounds + user rotation.
+                                        map = new TarkovDevSvgMap(capturedId, capturedConfig, tdEntry, svgPath, SilkProgram.Config.TarkovDevMapRotation);
+                                    }
+                                    catch (Exception tdEx)
+                                    {
+                                        Log.WriteLine($"[MapManager] tarkov.dev SVG renderer failed for '{capturedId}', falling back to local SVG: {tdEx.Message}");
+                                    }
+                                }
+                                else
+                                {
+                                    Log.WriteLine($"[MapManager] tarkov.dev SVG fetch failed for '{capturedId}', falling back to local SVG.");
+                                }
+                                // Fall through to local SVG if tarkov.dev failed.
+                                map ??= new RadarMap(MapsDir, capturedId, capturedConfig);
+                                break;
+
+                            default:
+                                Log.WriteLine($"[MapManager] Loading map '{capturedId}' ({capturedConfig.Name})...");
+                                map = new RadarMap(MapsDir, capturedId, capturedConfig);
+                                break;
                         }
                         sw.Stop();
-                        Log.WriteLine($"[MapManager] Map '{capturedConfig.Name}' ready ({sw.ElapsedMilliseconds}ms, satellite={capturedSatellite}).");
+                        Log.WriteLine($"[MapManager] Map '{capturedConfig.Name}' ready ({sw.ElapsedMilliseconds}ms, mode={capturedMode}).");
 
                         lock (_lock)
                         {
                             _currentMap = map;
                             _currentMapId = capturedId;
-                            _currentIsSatellite = capturedSatellite;
+                            _currentSourceMode = capturedMode;
                         }
                     }
                     catch (Exception ex)

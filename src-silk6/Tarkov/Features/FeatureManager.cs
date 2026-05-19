@@ -26,27 +26,8 @@ namespace eft_dma_radar.Silk6.Tarkov.Features
             // RunClassConstructor on the derived type alone is a no-op when it has no explicit
             // static constructor — the base MemWriteFeature<T> cctor (which calls Register)
             // only fires when a member of the closed generic is first touched.
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoRecoil>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoInertia>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<MoveSpeed>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<InfStamina>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NightVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ThermalVision>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<FullBright>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoVisor>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<DisableFrostbite>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<DisableInventoryBlur>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<DisableWeaponCollision>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ExtendedReach>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<FastDuck>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<LongJump>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ThirdPerson>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<InstantPlant>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<MagDrills>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<MuleMode>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<WideLean>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<MedPanel>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<OwlMode>).TypeHandle);
 
             Memory.GameStarted += (_, _) => OnGameStarted();
             Memory.GameStopped += (_, _) => OnGameStopped();

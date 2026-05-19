@@ -33,134 +33,75 @@ namespace eft_dma_radar.Silk6.Config
         public int Key { get; set; } = -1;
     }
 
-    /// <summary>Move speed multiplier sub-config.</summary>
-    public sealed class MoveSpeedConfig
+    /// <summary>
+    /// User-facing radar preset entry. Mutable bundle of the 13 radar-layer /
+    /// player-display toggles that <see cref="UI.Presets.PresetManager"/> applies
+    /// in one shot. Built-in baselines are seeded into <see cref="SilkConfig.Presets"/>
+    /// on first load; user-created presets are appended.
+    /// </summary>
+    public sealed class RadarPresetEntry
     {
-        [JsonPropertyName("enabled")]
-        public bool Enabled { get; set; } = false;
+        /// <summary>Stable identifier (slug of name + collision counter).</summary>
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
 
-        /// <summary>Speed multiplier (e.g. 1.2 = 20% faster).</summary>
-        [JsonPropertyName("multiplier")]
-        public float Multiplier { get; set; } = 1.2f;
+        /// <summary>User-facing name (editable).</summary>
+        [JsonPropertyName("displayName")]
+        public string DisplayName { get; set; } = "";
+
+        /// <summary>Optional explanation of what this preset is for.</summary>
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = "";
+
+        /// <summary>
+        /// If non-null, this preset was seeded from a hardcoded built-in baseline
+        /// with the matching Id, and can be reset back to those defaults.
+        /// User-created presets leave this null.
+        /// </summary>
+        [JsonPropertyName("baselineId")]
+        public string? BaselineId { get; set; }
+
+        [JsonPropertyName("battleMode")] public bool BattleMode { get; set; }
+        [JsonPropertyName("showLoot")] public bool ShowLoot { get; set; } = true;
+        [JsonPropertyName("showCorpses")] public bool ShowCorpses { get; set; } = true;
+        [JsonPropertyName("showContainers")] public bool ShowContainers { get; set; } = true;
+        [JsonPropertyName("showExfils")] public bool ShowExfils { get; set; } = true;
+        [JsonPropertyName("showDoors")] public bool ShowDoors { get; set; } = true;
+        [JsonPropertyName("showAirdrops")] public bool ShowAirdrops { get; set; } = true;
+        [JsonPropertyName("showSwitches")] public bool ShowSwitches { get; set; } = true;
+        [JsonPropertyName("showTransits")] public bool ShowTransits { get; set; } = true;
+        [JsonPropertyName("showAimlines")] public bool ShowAimlines { get; set; } = true;
+        [JsonPropertyName("connectGroups")] public bool ConnectGroups { get; set; } = true;
+        [JsonPropertyName("highAlert")] public bool HighAlert { get; set; } = true;
+        [JsonPropertyName("playersOnTop")] public bool PlayersOnTop { get; set; }
     }
 
-    /// <summary>FullBright sub-config.</summary>
-    public sealed class FullBrightConfig
+    /// <summary>
+    /// User override for a single map's calibration (the X / Y / Scale fields of
+    /// <see cref="UI.Maps.MapConfig"/>). Persisted per-map-id so the user can fine-tune
+    /// alignment once and have it stick across app restarts, and so the web radar
+    /// serves the corrected projection.
+    /// </summary>
+    public sealed class MapCalibration
     {
-        [JsonPropertyName("enabled")]
-        public bool Enabled { get; set; } = false;
+        [JsonPropertyName("x")]
+        public float X { get; set; }
 
-        /// <summary>Ambient brightness level [0..2].</summary>
-        [JsonPropertyName("brightness")]
-        public float Brightness { get; set; } = 1.0f;
-    }
+        [JsonPropertyName("y")]
+        public float Y { get; set; }
 
-    /// <summary>Extended reach sub-config.</summary>
-    public sealed class ExtendedReachConfig
-    {
-        [JsonPropertyName("enabled")]
-        public bool Enabled { get; set; } = false;
-
-        /// <summary>Loot/door interact distance (default game: ~1.3m).</summary>
-        [JsonPropertyName("distance")]
-        public float Distance { get; set; } = 3.0f;
-    }
-
-    /// <summary>Long jump sub-config.</summary>
-    public sealed class LongJumpConfig
-    {
-        [JsonPropertyName("enabled")]
-        public bool Enabled { get; set; } = false;
-
-        /// <summary>Air control multiplier (higher = longer jumps).</summary>
-        [JsonPropertyName("multiplier")]
-        public float Multiplier { get; set; } = 2.0f;
-    }
-
-    /// <summary>Wide lean sub-config.</summary>
-    public sealed class WideLeanConfig
-    {
-        [JsonPropertyName("enabled")]
-        public bool Enabled { get; set; } = false;
-
-        /// <summary>Lean amount (multiplied by 0.2 internally).</summary>
-        [JsonPropertyName("amount")]
-        public float Amount { get; set; } = 1.0f;
+        [JsonPropertyName("scale")]
+        public float Scale { get; set; } = 1f;
     }
 
     /// <summary>Per-feature memory write settings.</summary>
     public sealed class MemWritesConfig
     {
-        [JsonPropertyName("noRecoil")]
-        public bool NoRecoil { get; set; } = false;
-
-        /// <summary>Recoil amount percent (0 = none, 100 = full).</summary>
-        [JsonPropertyName("noRecoilAmount")]
-        public int NoRecoilAmount { get; set; } = 0;
-
-        /// <summary>Sway amount percent (0 = none, 100 = full).</summary>
-        [JsonPropertyName("noSwayAmount")]
-        public int NoSwayAmount { get; set; } = 0;
-
-        [JsonPropertyName("noInertia")]
-        public bool NoInertia { get; set; } = false;
-
-        [JsonPropertyName("infStamina")]
-        public bool InfStamina { get; set; } = false;
-
         [JsonPropertyName("nightVision")]
         public bool NightVision { get; set; } = false;
 
         [JsonPropertyName("thermalVision")]
         public bool ThermalVision { get; set; } = false;
-
-        [JsonPropertyName("moveSpeed")]
-        public MoveSpeedConfig MoveSpeed { get; set; } = new();
-
-        [JsonPropertyName("fullBright")]
-        public FullBrightConfig FullBright { get; set; } = new();
-
-        [JsonPropertyName("noVisor")]
-        public bool NoVisor { get; set; } = false;
-
-        [JsonPropertyName("disableFrostbite")]
-        public bool DisableFrostbite { get; set; } = false;
-
-        [JsonPropertyName("disableInventoryBlur")]
-        public bool DisableInventoryBlur { get; set; } = false;
-
-        [JsonPropertyName("disableWeaponCollision")]
-        public bool DisableWeaponCollision { get; set; } = false;
-
-        [JsonPropertyName("extendedReach")]
-        public ExtendedReachConfig ExtendedReach { get; set; } = new();
-
-        [JsonPropertyName("fastDuck")]
-        public bool FastDuck { get; set; } = false;
-
-        [JsonPropertyName("longJump")]
-        public LongJumpConfig LongJump { get; set; } = new();
-
-        [JsonPropertyName("thirdPerson")]
-        public bool ThirdPerson { get; set; } = false;
-
-        [JsonPropertyName("instantPlant")]
-        public bool InstantPlant { get; set; } = false;
-
-        [JsonPropertyName("magDrills")]
-        public bool MagDrills { get; set; } = false;
-
-        [JsonPropertyName("muleMode")]
-        public bool MuleMode { get; set; } = false;
-
-        [JsonPropertyName("wideLean")]
-        public WideLeanConfig WideLean { get; set; } = new();
-
-        [JsonPropertyName("medPanel")]
-        public bool MedPanel { get; set; } = false;
-
-        [JsonPropertyName("owlMode")]
-        public bool OwlMode { get; set; } = false;
     }
 
     /// <summary>
@@ -608,6 +549,36 @@ namespace eft_dma_radar.Silk6.Config
         [JsonPropertyName("useSatelliteMap")]
         public bool UseSatelliteMap { get; set; } = false;
 
+        /// <summary>
+        /// When true, fetch the map's SVG from <c>assets.tarkov.dev</c> instead of using
+        /// the bundled local SVG files. Downloads are cached persistently under
+        /// <c>%AppData%\eft-dma-radar-silk6\tarkov-dev-maps\</c> — one network round-trip
+        /// per map per install, then offline-friendly. Mutually exclusive with
+        /// <see cref="UseSatelliteMap"/> (satellite wins if both are on).
+        /// </summary>
+        [JsonPropertyName("useTarkovDevMap")]
+        public bool UseTarkovDevMap { get; set; } = false;
+
+        /// <summary>
+        /// Visual rotation (in degrees: 0, 90, 180, 270) applied to tarkov.dev SVG
+        /// maps when they are active. tarkov.dev SVGs are authored in a raw coord
+        /// space that doesn't line up with silk's bundled SVG orientation; this
+        /// setting lets the user pick the orientation they prefer. Default 90° is
+        /// what most players expect (north-up, mirroring the in-game tablet map).
+        /// </summary>
+        [JsonPropertyName("tarkovDevMapRotation")]
+        public int TarkovDevMapRotation { get; set; } = 90;
+
+        /// <summary>
+        /// Per-map calibration overrides keyed by primary map ID (e.g. "bigmap",
+        /// "interchange"). When present, <see cref="UI.Maps.MapManager"/> applies the
+        /// stored X / Y / Scale to the loaded <see cref="UI.Maps.MapConfig"/>,
+        /// overriding the bundled defaults. The user saves an override by clicking
+        /// "Save Calibration" in the Map Setup panel; reset removes the entry.
+        /// </summary>
+        [JsonPropertyName("mapCalibrationOverrides")]
+        public Dictionary<string, MapCalibration> MapCalibrationOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
         // ── Loot ────────────────────────────────────────────────────────────────
 
         /// <summary>Master toggle for loot rendering on the radar.</summary>
@@ -760,6 +731,15 @@ namespace eft_dma_radar.Silk6.Config
         [JsonPropertyName("activePresetId")]
         public string ActivePresetId { get; set; } = "Custom";
 
+        /// <summary>
+        /// All persisted radar presets — built-in baselines (Stealth / Loot Run / PvP /
+        /// Quests) are seeded on first load by <see cref="UI.Presets.PresetManager.EnsureSeeded"/>,
+        /// and any user-created presets are appended. Edits live here too; the hardcoded
+        /// baselines in PresetManager are only used as reset targets.
+        /// </summary>
+        [JsonPropertyName("presets")]
+        public List<RadarPresetEntry> Presets { get; set; } = [];
+
         // ── Hotkeys ─────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -832,22 +812,24 @@ namespace eft_dma_radar.Silk6.Config
             Hotkeys ??= [];
             SelectedContainers ??= [];
             QuestBlacklist ??= [];
+            MapCalibrationOverrides ??= new(StringComparer.OrdinalIgnoreCase);
 
             RightDockWidth = Math.Clamp(RightDockWidth, 260f, 720f);
 
             MemWrites ??= new();
-            MemWrites.MoveSpeed ??= new();
-            MemWrites.FullBright ??= new();
-            MemWrites.ExtendedReach ??= new();
-            MemWrites.LongJump ??= new();
-            MemWrites.WideLean ??= new();
-            MemWrites.NoRecoilAmount  = Math.Clamp(MemWrites.NoRecoilAmount,  0, 100);
-            MemWrites.NoSwayAmount    = Math.Clamp(MemWrites.NoSwayAmount,    0, 100);
-            MemWrites.MoveSpeed.Multiplier = Math.Clamp(MemWrites.MoveSpeed.Multiplier, 0.5f, 5.0f);
-            MemWrites.FullBright.Brightness = Math.Clamp(MemWrites.FullBright.Brightness, 0f, 2f);
-            MemWrites.ExtendedReach.Distance = Math.Clamp(MemWrites.ExtendedReach.Distance, 1f, 20f);
-            MemWrites.LongJump.Multiplier = Math.Clamp(MemWrites.LongJump.Multiplier, 1f, 10f);
-            MemWrites.WideLean.Amount = Math.Clamp(MemWrites.WideLean.Amount, 0.1f, 5f);
+
+            // Snap TarkovDevMapRotation to the nearest supported quadrant.
+            TarkovDevMapRotation = ((TarkovDevMapRotation % 360) + 360) % 360;
+            TarkovDevMapRotation = TarkovDevMapRotation switch
+            {
+                >= 45 and < 135  => 90,
+                >= 135 and < 225 => 180,
+                >= 225 and < 315 => 270,
+                _ => 0,
+            };
+
+            // Seed built-in preset baselines on first load (or after a fresh install).
+            eft_dma_radar.Silk6.UI.Presets.PresetManager.EnsureSeeded(this);
 
             if (string.IsNullOrWhiteSpace(DeviceStr))
                 DeviceStr = "fpga";

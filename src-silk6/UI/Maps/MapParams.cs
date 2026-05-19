@@ -25,14 +25,39 @@ namespace eft_dma_radar.Silk6.UI.Maps
 
         /// <summary>
         /// Projects a Unity world position to an unzoomed map position.
+        /// Handles <see cref="MapConfig.Rotation"/> by swapping/negating the X and Z
+        /// axes for 90° / 270° rotations (used by tarkov.dev SVG maps when the user
+        /// has chosen to rotate the bitmap perpendicular to its raw orientation).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector2 ToMapPos(Vector3 unityPos, MapConfig cfg)
         {
             float s = cfg.Scale * cfg.SvgScale;
-            return new Vector2(
-                cfg.X * cfg.SvgScale + unityPos.X * s,
-                cfg.Y * cfg.SvgScale - unityPos.Z * s);
+            float bx = cfg.X * cfg.SvgScale;
+            float by = cfg.Y * cfg.SvgScale;
+            float wx = unityPos.X;
+            float wz = unityPos.Z;
+
+            // tarkov.dev's baseTransform projection (matching their Leaflet getCRS):
+            //   raw_px =  scaleX * lng + marginX                 // lng = worldX
+            //   raw_py = -scaleY * lat + marginY                 // lat = worldZ
+            //
+            // After rotating the rasterized bitmap by R degrees CCW around its center
+            // (90° / 270° swap the bitmap dimensions; 180° keeps them):
+            //   rot 0  : new_px = raw_px                              ; new_py = raw_py
+            //   rot 90 : new_px = raw_py                              ; new_py = rawW - raw_px
+            //   rot 180: new_px = rawW - raw_px                       ; new_py = rawH - raw_py
+            //   rot 270: new_px = rawH - raw_py                       ; new_py = raw_px
+            //
+            // The catalog's BuildConfig folds rawW/H + margins into cfg.X / cfg.Y, so
+            // here we only need the sign/axis pattern below. Scale stays POSITIVE.
+            return cfg.Rotation switch
+            {
+                90  => new Vector2(bx - wz * s, by - wx * s),
+                180 => new Vector2(bx - wx * s, by + wz * s),
+                270 => new Vector2(bx + wz * s, by + wx * s),
+                _   => new Vector2(bx + wx * s, by - wz * s),
+            };
         }
 
         /// <summary>
@@ -62,21 +87,49 @@ namespace eft_dma_radar.Silk6.UI.Maps
             float mapTop    = Bounds.Top    - mapMarginY;
             float mapBottom = Bounds.Bottom + mapMarginY;
 
-            // Inverse of ToMapPos:
-            // mapX = cfg.X * svgScale + worldX * scale * svgScale
-            // worldX = (mapX - cfg.X * svgScale) / (scale * svgScale)
-            // mapY = cfg.Y * svgScale - worldZ * scale * svgScale
-            // worldZ = -(mapY - cfg.Y * svgScale) / (scale * svgScale)
+            // Inverse of ToMapPos. The 4 rotation cases swap which world axis
+            // contributes to mapX vs mapY (and the sign on each).
             float s = Config.Scale * Config.SvgScale;
             float invS = 1f / s;
             float offsetX = Config.X * Config.SvgScale;
             float offsetY = Config.Y * Config.SvgScale;
 
-            float worldMinX = (mapLeft  - offsetX) * invS;
-            float worldMaxX = (mapRight - offsetX) * invS;
-            // Note: Z axis is inverted (mapY = offset - worldZ * s)
-            float worldMinZ = -(mapBottom - offsetY) * invS;
-            float worldMaxZ = -(mapTop    - offsetY) * invS;
+            float worldMinX, worldMaxX, worldMinZ, worldMaxZ;
+            switch (Config.Rotation)
+            {
+                case 90:
+                    // mapX = offX - Z*s   ⇒ Z = -(mapX - offX)/s
+                    // mapY = offY - X*s   ⇒ X = -(mapY - offY)/s
+                    worldMinZ = -(mapRight  - offsetX) * invS;
+                    worldMaxZ = -(mapLeft   - offsetX) * invS;
+                    worldMinX = -(mapBottom - offsetY) * invS;
+                    worldMaxX = -(mapTop    - offsetY) * invS;
+                    break;
+                case 180:
+                    // mapX = offX - X*s   ⇒ X = -(mapX - offX)/s
+                    // mapY = offY + Z*s   ⇒ Z = (mapY - offY)/s
+                    worldMinX = -(mapRight  - offsetX) * invS;
+                    worldMaxX = -(mapLeft   - offsetX) * invS;
+                    worldMinZ = (mapTop    - offsetY) * invS;
+                    worldMaxZ = (mapBottom - offsetY) * invS;
+                    break;
+                case 270:
+                    // mapX = offX + Z*s   ⇒ Z = (mapX - offX)/s
+                    // mapY = offY + X*s   ⇒ X = (mapY - offY)/s
+                    worldMinZ = (mapLeft   - offsetX) * invS;
+                    worldMaxZ = (mapRight  - offsetX) * invS;
+                    worldMinX = (mapTop    - offsetY) * invS;
+                    worldMaxX = (mapBottom - offsetY) * invS;
+                    break;
+                default:
+                    // mapX = offX + X*s   ⇒ X = (mapX - offX)/s
+                    // mapY = offY - Z*s   ⇒ Z = -(mapY - offY)/s
+                    worldMinX = (mapLeft   - offsetX) * invS;
+                    worldMaxX = (mapRight  - offsetX) * invS;
+                    worldMinZ = -(mapBottom - offsetY) * invS;
+                    worldMaxZ = -(mapTop    - offsetY) * invS;
+                    break;
+            }
 
             // Scale may be negative (e.g. 180°-rotated satellite maps), which swaps
             // min/max. Normalise so Contains() works regardless of sign.

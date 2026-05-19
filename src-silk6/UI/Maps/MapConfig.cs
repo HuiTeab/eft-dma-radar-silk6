@@ -29,6 +29,16 @@ namespace eft_dma_radar.Silk6.UI.Maps
         [JsonPropertyName("disableDimming")]
         public bool DisableDimming { get; init; }
 
+        /// <summary>
+        /// Visual rotation applied to the rasterized map bitmap, in degrees.
+        /// Supported values: 0, 90, 180, 270. Used by tarkov.dev SVG maps so the
+        /// projection (<see cref="MapParams.ToMapPos"/>) swaps/negates axes to
+        /// match the rotated bitmap. Local SVGs / satellite tiles leave this at 0
+        /// and encode rotation by sign-flipping <see cref="Scale"/> instead.
+        /// </summary>
+        [JsonPropertyName("rotation")]
+        public int Rotation { get; init; }
+
         [JsonPropertyName("mapLayers")]
         public List<MapLayer> MapLayers { get; init; } = [];
 

@@ -348,13 +348,13 @@ namespace eft_dma_radar.Silk6.UI
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive,  PillIdleActive);
 
             ImGui.SetNextItemWidth(120f * UIScale);
-            string current = PresetManager.DisplayNameFor(Config.ActivePresetId);
+            string current = PresetManager.DisplayNameFor(Config, Config.ActivePresetId);
             if (ImGui.BeginCombo("##PresetSelector", current))
             {
-                foreach (var id in PresetManager.AllIds)
+                foreach (var id in PresetManager.AllIds(Config))
                 {
                     bool selected = id == Config.ActivePresetId;
-                    if (ImGui.Selectable(PresetManager.DisplayNameFor(id), selected))
+                    if (ImGui.Selectable(PresetManager.DisplayNameFor(Config, id), selected))
                         PresetManager.Apply(id, Config);
                     if (selected)
                         ImGui.SetItemDefaultFocus();
