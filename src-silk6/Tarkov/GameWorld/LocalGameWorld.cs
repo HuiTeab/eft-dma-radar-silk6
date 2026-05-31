@@ -478,6 +478,11 @@ namespace eft_dma_radar.Silk6.Tarkov.GameWorld
             _cameraWorker?.Start();
             _explosivesWorker?.Start();
             _lootWorker?.Start();
+
+            // Vischeck — independent worker; safe to start before any snapshot
+            // has been built (the tick early-outs when SceneCache.Snapshot
+            // is empty). Lifetime spans the entire raid; stopped in Dispose.
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.VisibilityWorker.Start();
         }
 
         /// <summary>
@@ -509,6 +514,14 @@ namespace eft_dma_radar.Silk6.Tarkov.GameWorld
             _registrationWorker?.Dispose();
             _explosivesWorker?.Dispose();
             _lootWorker?.Dispose();
+
+            // Vischeck — Stop is idempotent. Also reset the SceneCache so the
+            // next raid doesn't briefly serve the previous map's geometry
+            // (the disk fingerprint check would catch it anyway, but resetting
+            // is cheaper than a doomed snapshot validation pass).
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.VisibilityWorker.Stop();
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.SceneCache.Reset();
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.BlockerHistory.Clear();
 
             // Then wait for each to exit before we proceed (downstream code may
             // tear down state the workers are still referencing). Bounded so a

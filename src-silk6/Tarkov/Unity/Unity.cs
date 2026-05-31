@@ -461,16 +461,31 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity
         public static GOM Get(ulong gomAddress)
         {
             if (!SilkUtils.IsValidVirtualAddress(gomAddress))
+            {
+                Log.WriteLine($"[GOM][diag] Get: invalid GOM address 0x{gomAddress:X}");
                 return default;
+            }
 
             if (!Memory.TryReadValue<ulong>(gomAddress + FirstNodeOffset, out var firstNode, false))
+            {
+                Log.WriteLine($"[GOM][diag] Get: FirstNode read failed @ 0x{gomAddress + FirstNodeOffset:X}");
                 return default;
+            }
             if (!SilkUtils.IsValidVirtualAddress(firstNode))
+            {
+                Log.WriteLine($"[GOM][diag] Get: FirstNode invalid 0x{firstNode:X}");
                 return default;
+            }
             if (!Memory.TryReadValue<ulong>(gomAddress + LastNodeOffset, out var lastNode, false))
+            {
+                Log.WriteLine($"[GOM][diag] Get: LastNode read failed @ 0x{gomAddress + LastNodeOffset:X}");
                 return default;
+            }
             if (!SilkUtils.IsValidVirtualAddress(lastNode))
+            {
+                Log.WriteLine($"[GOM][diag] Get: LastNode invalid 0x{lastNode:X}");
                 return default;
+            }
 
             return new GOM(firstNode, lastNode);
         }
@@ -721,19 +736,145 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity
         {
             if (string.IsNullOrEmpty(className)) return 0;
             var gom = Get(Memory.GOM);
-            if (!Memory.TryReadValue<LinkedListObject>(gom.FirstNode, out var first, true)) return 0;
-            if (!Memory.TryReadValue<LinkedListObject>(gom.LastNode,  out var last,  true)) return 0;
-            ulong result = WalkList(first, last, forward: true,
-                node => GetComponentByClassName(node.ThisObject, className), useCache: true);
+            if (!Memory.TryReadValue<LinkedListObject>(gom.FirstNode, out var first, true))
+            {
+                Log.WriteLine($"[GOM][diag] FindBehaviourByClassName(\"{className}\"): FirstNode LinkedListObject read failed @ 0x{gom.FirstNode:X}");
+                return 0;
+            }
+            if (!Memory.TryReadValue<LinkedListObject>(gom.LastNode,  out var last,  true))
+            {
+                Log.WriteLine($"[GOM][diag] FindBehaviourByClassName(\"{className}\"): LastNode LinkedListObject read failed @ 0x{gom.LastNode:X}");
+                return 0;
+            }
+
+            // ── Instrumented walk ────────────────────────────────────────────
+            // Counters are free in the happy path and only logged on full miss.
+            // Sample of distinct class names seen lets us tell apart "GOM walk
+            // dead" from "walk OK but the target class is named something else".
+            int gosInspected = 0;
+            int gosReadable = 0;
+            int gosWithComps = 0;
+            int compsInspected = 0;
+            int compsWithObjClass = 0;
+            int compsWithName = 0;
+            var sampleNames = new HashSet<string>(StringComparer.Ordinal);
+            const int sampleCap = 30;
+            // Shared component-entry buffer — hoisted out of the per-node Inspect
+            // call so we don't pay an allocation per GO across the walk.
+            var entryBuffer = new ComponentArray.Entry[0x400];
+
+            ulong Inspect(LinkedListObject node)
+            {
+                gosInspected++;
+                if (!Memory.TryReadValue<GameObject>(node.ThisObject, out var go, true))
+                    return 0;
+                gosReadable++;
+                ref readonly var compArr = ref go.Components;
+                ulong size = compArr.Size;
+                if (!SilkUtils.IsValidVirtualAddress(compArr.ArrayBase) || size == 0 || size > 0x400)
+                    return 0;
+                gosWithComps++;
+                int count = (int)size;
+                var entries = entryBuffer.AsSpan(0, count);
+                if (!Memory.TryReadBuffer(compArr.ArrayBase, entries, true))
+                    return 0;
+                for (int i = 0; i < count; i++)
+                {
+                    var compPtr = entries[i].Component;
+                    if (!SilkUtils.IsValidVirtualAddress(compPtr)) continue;
+                    compsInspected++;
+                    if (!TryReadManagedObject(compPtr, out var managedObj, useCache: true))
+                        continue;
+                    compsWithObjClass++;
+
+                    var name = Il2CppClass.ReadName(managedObj, useCache: true);
+                    if (name is null) continue;
+                    compsWithName++;
+                    if (sampleNames.Count < sampleCap) sampleNames.Add(name);
+                    if (name.Equals(className, StringComparison.Ordinal))
+                        return managedObj;
+                }
+                return 0;
+            }
+
+            // Specialised walker that records WHY the walk ended in addition
+            // to the result. We can't use the shared WalkList helper because
+            // it doesn't surface its exit reason to the caller.
+            (ulong result, string exit, int nodes) Walk(LinkedListObject start, LinkedListObject end, bool forward)
+            {
+                var current = start;
+                int n = 0;
+                for (int i = 0; i < MaxWalkNodes; i++)
+                {
+                    if (!SilkUtils.IsValidVirtualAddress(current.ThisObject))
+                        return (0, $"sentinel/invalid ThisObject @ {n}", n);
+                    n++;
+                    var hit = Inspect(current);
+                    if (SilkUtils.IsValidVirtualAddress(hit))
+                        return (hit, $"matched @ {n}", n);
+                    if (current.ThisObject == end.ThisObject)
+                        return (0, $"reached end node @ {n}", n);
+                    var nextLink = forward ? current.NextObjectLink : current.PreviousObjectLink;
+                    if (!Memory.TryReadValue<LinkedListObject>(nextLink, out current, true))
+                        return (0, $"link read failed @ {n} (link=0x{nextLink:X})", n);
+                }
+                return (0, $"hit MaxWalkNodes={MaxWalkNodes}", n);
+            }
+
+            var fwd = Walk(first, last, forward: true);
+            ulong result = fwd.result;
+            string bwdExit = "skipped";
+            int bwdNodes = 0;
             if (result == 0)
-                result = WalkList(last, first, forward: false,
-                    node => GetComponentByClassName(node.ThisObject, className), useCache: true);
+            {
+                var bwd = Walk(last, first, forward: false);
+                result = bwd.result;
+                bwdExit = bwd.exit;
+                bwdNodes = bwd.nodes;
+            }
+
+            if (result == 0)
+            {
+                Log.WriteLine(
+                    $"[GOM][diag] FindBehaviourByClassName(\"{className}\") miss:\n" +
+                    $"           forward:   {fwd.exit} (visited {fwd.nodes})\n" +
+                    $"           backward:  {bwdExit} (visited {bwdNodes})\n" +
+                    $"           gos:       inspected={gosInspected} readable={gosReadable} withComps={gosWithComps}\n" +
+                    $"           comps:     inspected={compsInspected} withObjClass={compsWithObjClass} withName={compsWithName}\n" +
+                    $"           sample[{sampleNames.Count}]: {string.Join(", ", sampleNames)}");
+            }
+
             return result;
         }
 
         /// <summary>
-        /// Searches a single GameObject's component array for a component with a matching klass pointer.
-        /// Returns the objectClass pointer, or 0.
+        /// On Unity 6 / IL2CPP, <c>compPtr + Comp_ObjectClass (0x28)</c> stores a pointer
+        /// to a *handle table slot* (the IL2CPP GCHandle), not the managed object itself.
+        /// The actual managed scripting wrapper is reached by one extra dereference.
+        /// Layout of the wrapper at the returned address:
+        ///   +0x00 Il2CppClass*  (klass)
+        ///   +0x08 monitor
+        ///   +0x10 m_CachedPtr   (native back-ref to <paramref name="compPtr"/>)
+        /// All downstream offset reads (HideoutArea field offsets etc.) are relative to
+        /// the managed object, so callers should treat the returned pointer as the
+        /// canonical "behaviour" address.
+        /// </summary>
+        private static bool TryReadManagedObject(ulong compPtr, out ulong managedObj, bool useCache)
+        {
+            managedObj = 0;
+            if (!Memory.TryReadPtr(compPtr + UnityOffsets.Comp_ObjectClass, out var handleSlot, useCache)
+                || !SilkUtils.IsValidVirtualAddress(handleSlot))
+                return false;
+            if (!Memory.TryReadPtr(handleSlot, out managedObj, useCache)
+                || !SilkUtils.IsValidVirtualAddress(managedObj))
+                return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Searches a single GameObject's component array for a component whose klass
+        /// pointer matches. Returns the managed object pointer (suitable as a behaviour
+        /// argument for downstream field reads), or 0.
         /// </summary>
         private static ulong GetComponentByKlassPtr(ulong gameObject, ulong klassPtr)
         {
@@ -758,22 +899,23 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity
                 if (!SilkUtils.IsValidVirtualAddress(compPtr))
                     continue;
 
-                if (!Memory.TryReadPtr(compPtr + UnityOffsets.Comp_ObjectClass, out var objectClass, true)
-                    || !SilkUtils.IsValidVirtualAddress(objectClass))
+                if (!TryReadManagedObject(compPtr, out var managedObj, useCache: true))
                     continue;
 
-                if (!Memory.TryReadPtr(objectClass, out var klass, true))
+                // managedObj + 0x0 = klass (Il2CppClass*)
+                if (!Memory.TryReadPtr(managedObj, out var klass, true))
                     continue;
 
                 if (klass == klassPtr)
-                    return objectClass;
+                    return managedObj;
             }
             return 0;
         }
 
         /// <summary>
-        /// Searches a single GameObject's component array for a component whose IL2CPP class name matches.
-        /// Returns the objectClass pointer, or 0.
+        /// Searches a single GameObject's component array for a component whose IL2CPP class
+        /// name matches. Returns the managed object pointer (suitable as a behaviour argument
+        /// for downstream field reads), or 0.
         /// Uses read caching by default — class names are stable within a session and
         /// caching avoids thousands of redundant DMA reads when walking the GOM
         /// (many GameObjects share the same component types like Transform, MeshRenderer, etc.).
@@ -801,13 +943,12 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity
                 if (!SilkUtils.IsValidVirtualAddress(compPtr))
                     continue;
 
-                if (!Memory.TryReadPtr(compPtr + UnityOffsets.Comp_ObjectClass, out var objectClass, true)
-                    || !SilkUtils.IsValidVirtualAddress(objectClass))
+                if (!TryReadManagedObject(compPtr, out var managedObj, useCache: true))
                     continue;
 
-                var name = Il2CppClass.ReadName(objectClass, useCache: true);
+                var name = Il2CppClass.ReadName(managedObj, useCache: true);
                 if (name is not null && name.Equals(className, StringComparison.Ordinal))
-                    return objectClass;
+                    return managedObj;
             }
             return 0;
         }

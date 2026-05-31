@@ -40,8 +40,14 @@ namespace eft_dma_radar.Silk6.Misc
             if (args?.Contains("-logging", StringComparer.OrdinalIgnoreCase) ?? false)
             {
                 string logFileName = $"log-{DateTime.UtcNow.ToFileTime()}.txt";
-                var fs = new FileStream(logFileName, FileMode.Create, FileAccess.Write);
-                _fileWriter = new StreamWriter(fs, Encoding.UTF8, 0x1000);
+                // FileShare.Read so the user can tail -f / inspect the log
+                // while the app is running. AutoFlush=true so a hung or
+                // crashed worker doesn't leave the last 4 KB of diagnostic
+                // output buffered in memory — every line lands on disk
+                // immediately. Per-line write cost is negligible against
+                // the rest of what each tick does.
+                var fs = new FileStream(logFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
+                _fileWriter = new StreamWriter(fs, Encoding.UTF8, 0x1000) { AutoFlush = true };
                 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
                 {
                     var w = Interlocked.Exchange(ref _fileWriter, null);

@@ -163,6 +163,39 @@ internal static class HotkeyManager
         new("QuickMenuOpen", "Quick Menu (hold)", "Layout",
             "Hold to open the radial quick menu; release on a slice to toggle it",
             static e => { if (e.IsDown) eft_dma_radar.Silk6.UI.Shell.QuickMenu.Open(); else eft_dma_radar.Silk6.UI.Shell.QuickMenu.Close(); }),
+
+        // VisCheck (PhysX visibility) — no default keys, user binds via the
+        // Hotkey panel. Listed in a dedicated category so they're discoverable.
+        new("VisCheckDebugToggle", "VisCheck Debug Window", "VisCheck",
+            "Toggle the VisCheck debug overlay (worker stats, Top Blockers, classifier rules)",
+            static e => { if (e.IsDown) eft_dma_radar.Silk6.Tarkov.Unity.PhysX.VisCheckDebugWindow.Toggle(); }),
+
+        new("VisCheckCacheViewToggle", "VisCheck Cache View", "VisCheck",
+            "Toggle the 3D wireframe Cache View (PhysX scene + live player overlay)",
+            static e => { if (e.IsDown) eft_dma_radar.Silk6.Tarkov.Unity.PhysX.CacheViewWindow.Toggle(); }),
+
+        new("VisCheckRebuild", "VisCheck Rebuild Snapshot", "VisCheck",
+            "Force-rebuild the PhysX scene snapshot for the current map",
+            static e => {
+                if (!e.IsDown) return;
+                var map = Memory.Game?.MapID;
+                if (!string.IsNullOrEmpty(map))
+                    eft_dma_radar.Silk6.Tarkov.Unity.PhysX.SceneCache.TriggerBuild(map);
+            }),
+
+        new("LogPlayerPosition", "Log Player Height", "VisCheck",
+            "Write the local player's world position to the log (height = Y). Stand on each\n" +
+            "deck and press once to capture floor heights for accurate map floor bands.",
+            static e => {
+                if (!e.IsDown) return;
+                if (Memory.LocalPlayer?.Position is { } pos)
+                {
+                    string msg = $"X={pos.X:0.00}  Z={pos.Z:0.00}  height(Y)={pos.Y:0.00}";
+                    Log.WriteLine($"[PlayerPos] {msg}");
+                    eft_dma_radar.Silk6.UI.Shell.ToastManager.Success($"Logged player pos — {msg}");
+                }
+                else Log.WriteLine("[PlayerPos] LocalPlayer unavailable");
+            }),
     ];
 
     /// <summary>Lookup from action ID to definition, for fast access.</summary>

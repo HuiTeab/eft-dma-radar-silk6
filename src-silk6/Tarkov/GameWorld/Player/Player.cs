@@ -141,6 +141,23 @@ namespace eft_dma_radar.Silk6.Tarkov.GameWorld.Player
         public bool IsError { get; set; }
 
         /// <summary>
+        /// Vischeck per-player visibility result. <c>true</c> = at least one
+        /// of the checked bones (head/chest/pelvis) is reachable from the
+        /// local player's eye through the PhysX scene; <c>false</c> = every
+        /// bone is blocked by a non-see-through actor. Defaults to true so
+        /// the renderer doesn't hide everyone before the worker has run.
+        /// </summary>
+        public bool IsVisible { get; set; } = true;
+
+        /// <summary>
+        /// <see cref="Environment.TickCount64"/> when <see cref="IsVisible"/>
+        /// was last updated. Renderers can use this to time-out the flag
+        /// (default to visible) after a beat of no updates so e.g. a frozen
+        /// vischeck worker doesn't leave the entire lobby permanently dimmed.
+        /// </summary>
+        public long LastVisCheckTickMs { get; set; }
+
+        /// <summary>
         /// Observed health status for non-local players.
         /// Derived from <c>ObservedHealthController.HealthStatus</c> bitmask.
         /// </summary>

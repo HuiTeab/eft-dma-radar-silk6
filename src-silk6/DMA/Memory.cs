@@ -66,6 +66,14 @@ namespace eft_dma_radar.Silk6.DMA
         public static ulong UnityBase { get; private set; }
         public static ulong GOM { get; private set; }
         public static ulong GameAssemblyBase { get; private set; }
+
+        /// <summary>
+        /// UnityPlayer.dll FileVersion read from the PE version resource at
+        /// attach time. Empty when the probe failed (non-fatal). Used by the
+        /// PhysX snapshot fingerprint so a Unity bump invalidates the cached
+        /// snapshot file automatically.
+        /// </summary>
+        public static string UnityPlayerVersion { get; private set; } = string.Empty;
         public static bool Ready => _state is MemoryState.ProcessFound or MemoryState.InRaid or MemoryState.InHideout;
         public static bool InRaid => _state is MemoryState.InRaid;
         public static bool InHideout => _state is MemoryState.InHideout;
@@ -693,6 +701,32 @@ namespace eft_dma_radar.Silk6.DMA
             ArgumentOutOfRangeException.ThrowIfZero(unityBase, nameof(unityBase));
             UnityBase = unityBase;
 
+            // Snapshot the Unity engine version from the PE version resource.
+            // Used by the PhysX snapshot fingerprint so a Unity bump
+            // invalidates the disk cache automatically. Failures non-fatal.
+            try
+            {
+                var modules = vmm.Map_GetModule(_pid, fExtendedInfo: true);
+                if (modules is not null)
+                {
+                    foreach (var m in modules)
+                    {
+                        if (!string.Equals(m.sText, "UnityPlayer.dll", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        if (m.VersionInfo.fValid && !string.IsNullOrEmpty(m.VersionInfo.sFileVersion))
+                        {
+                            UnityPlayerVersion = m.VersionInfo.sFileVersion;
+                            Log.WriteLine($"[Memory] UnityPlayer.dll FileVersion={m.VersionInfo.sFileVersion}");
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.WriteLine($"[Memory] UnityPlayer.dll version probe failed: {ex.Message}");
+            }
+
             var gaBase = vmm.ProcessGetModuleBase(_pid, "GameAssembly.dll");
             if (gaBase != 0)
             {
@@ -949,6 +983,27 @@ namespace eft_dma_radar.Silk6.DMA
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong[] FindSignatures(string signature, string moduleName, int maxMatches = int.MaxValue)
             => VmmOrThrow().FindSignatures(_pid, signature, moduleName, maxMatches);
+
+        /// <summary>
+        /// Returns the loaded image size (in bytes) of <paramref name="moduleName"/>
+        /// inside the attached process, or 0 if the module isn't currently
+        /// loaded. Used by <see cref="PhysX.PhysXProbe"/> to flag candidate
+        /// pointers that fall inside UnityPlayer.dll's own image (those would
+        /// be vtables / globals, not heap-allocated SDK pointers).
+        /// </summary>
+        public static uint GetModuleImageSize(string moduleName)
+        {
+            try
+            {
+                var modules = VmmOrThrow().Map_GetModule(_pid, fExtendedInfo: false);
+                if (modules is null) return 0;
+                foreach (var m in modules)
+                    if (string.Equals(m.sText, moduleName, StringComparison.OrdinalIgnoreCase))
+                        return m.cbImageSize;
+            }
+            catch { }
+            return 0;
+        }
 
         #endregion
 

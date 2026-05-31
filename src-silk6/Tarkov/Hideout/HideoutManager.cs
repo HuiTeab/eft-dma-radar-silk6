@@ -376,6 +376,8 @@ namespace eft_dma_radar.Silk6.Tarkov.Hideout
                     if (!behaviour.IsValidVirtualAddress())
                     {
                         Log.WriteLine($"[HideoutManager] \"{HideoutAreaClassName}\" not found in GOM.");
+                        // FindBehaviourByClassName itself logs structural stats +
+                        // a sample of distinct class names seen on every miss.
                         return false;
                     }
 
@@ -423,22 +425,37 @@ namespace eft_dma_radar.Silk6.Tarkov.Hideout
             {
                 var result = GOM.FindBehaviourByKlassPtr(cachedKlass);
                 if (result.IsValidVirtualAddress())
+                {
+                    Log.WriteLine($"[HideoutManager] {className} cache hit (klass=0x{cachedKlass:X} → behaviour=0x{result:X})");
                     return result;
+                }
 
                 // Klass pointer went stale (game restart?), clear and fall through
+                Log.WriteLine($"[HideoutManager] {className} cached klass=0x{cachedKlass:X} went stale — falling back to name scan");
                 cachedKlass = 0;
+            }
+            else
+            {
+                Log.WriteLine($"[HideoutManager] {className} no cached klass — running name scan");
             }
 
             // Reliable path: class name scan (same approach as WPF)
             var found = GOM.FindBehaviourByClassName(className);
             if (!found.IsValidVirtualAddress())
+            {
+                Log.WriteLine($"[HideoutManager] {className} name scan returned 0");
                 return 0;
+            }
 
             // Cache klass from found object for fast future lookups
             if (Memory.TryReadPtr(found, out var klass, false) && klass.IsValidVirtualAddress())
             {
                 cachedKlass = klass;
                 Log.WriteLine($"[HideoutManager] Cached {className} klass=0x{klass:X}");
+            }
+            else
+            {
+                Log.WriteLine($"[HideoutManager] {className} found behaviour=0x{found:X} but klass read failed (cache not populated)");
             }
 
             return found;

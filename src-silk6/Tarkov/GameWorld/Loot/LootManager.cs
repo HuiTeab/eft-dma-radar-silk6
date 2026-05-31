@@ -132,63 +132,6 @@ namespace eft_dma_radar.Silk6.Tarkov.GameWorld.Loot
                 return;
             }
 
-            // Extract items from container grids and add to loot list
-            try
-            {
-                Log.WriteLine($"[LootManager] Starting container grid extraction. Cache size: {_containerCache.Count}");
-
-                if (_containerCache.Count > 0)
-                {
-                    var containerInfo = _containerCache
-                        .Where(x => x.Value.MainStoragePtr.IsValidVirtualAddress())
-                        .Select(x => (x.Value.MainStoragePtr, x.Value.Position, x.Key))
-                        .ToList();
-
-                    Log.WriteLine($"[LootManager] Containers with valid MainStorage: {containerInfo.Count}");
-
-                    if (containerInfo.Count > 0)
-                    {
-                        Log.WriteLine($"[LootManager] Extracting pending container items from {containerInfo.Count} containers...");
-                        var pendingContainerItems = ExtractContainerGridItemsPending(containerInfo);
-                        Log.WriteLine($"[LootManager] Extracted {pendingContainerItems.Count} pending container items");
-
-                        if (pendingContainerItems.Count > 0)
-                        {
-                            Log.WriteLine($"[LootManager] Resolving {pendingContainerItems.Count} container items to LootItems...");
-                            var containerItems = ResolveContainerItemsBatched(pendingContainerItems);
-                            Log.WriteLine($"[LootManager] Resolved {containerItems.Count} container items");
-
-                            if (containerItems.Count > 0)
-                            {
-                                // Merge container items with loot items
-                                var merged = new List<LootItem>(lootResult.Count + containerItems.Count);
-                                merged.AddRange(lootResult);
-                                merged.AddRange(containerItems);
-                                _loot = merged;
-                                Log.WriteLine($"[LootManager] Merged container items. Total loot: {_loot.Count}");
-                            }
-                        }
-                        else
-                        {
-                            Log.WriteLine($"[LootManager] No pending container items extracted");
-                        }
-                    }
-                    else
-                    {
-                        Log.WriteLine($"[LootManager] No containers with valid MainStorage pointers");
-                    }
-                }
-                else
-                {
-                    Log.WriteLine($"[LootManager] Container cache is empty");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.WriteRateLimited(AppLogLevel.Warning, "container_items_fail", TimeSpan.FromSeconds(5),
-                    $"[LootManager] Container items extraction failed: {ex.Message}");
-            }
-
             // Carry over previously-read gear/name data to new corpse objects
             var oldCorpses = _corpses;
             if (oldCorpses.Count > 0 && corpseResult.Count > 0)

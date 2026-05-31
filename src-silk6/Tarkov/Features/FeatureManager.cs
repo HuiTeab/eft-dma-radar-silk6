@@ -20,6 +20,9 @@ namespace eft_dma_radar.Silk6.Tarkov.Features
         /// <summary>Reusable list for active write features — avoids per-tick LINQ/List allocation.</summary>
         private static readonly List<IMemWriteFeature> _activeFeatures = new(32);
 
+        /// <summary>Reusable list for active patch features — avoids per-tick LINQ/List allocation.</summary>
+        private static readonly List<IMemPatchFeature> _activePatches = new(16);
+
         internal static void ModuleInit()
         {
             // Force static constructors on the generic base types so each feature self-registers.
@@ -82,12 +85,16 @@ namespace eft_dma_radar.Silk6.Tarkov.Features
                     while (SilkProgram.Config.MemWritesEnabled && Memory.Ready)
                     {
                         _activeFeatures.Clear();
+                        _activePatches.Clear();
                         foreach (var f in IFeature.AllFeatures)
                         {
                             if (f is IMemWriteFeature mw && mw.CanRun)
                                 _activeFeatures.Add(mw);
+                            else if (f is IMemPatchFeature mp && mp.CanRun)
+                                _activePatches.Add(mp);
                         }
 
+                        ExecuteMemPatches(_activePatches);
                         ExecuteMemWrites(_activeFeatures);
                         Thread.Sleep(10);
                     }
@@ -96,6 +103,22 @@ namespace eft_dma_radar.Silk6.Tarkov.Features
                 {
                     Log.WriteLine($"[FeatureManager] Worker exception: {ex.Message}");
                     Thread.Sleep(500);
+                }
+            }
+        }
+
+        private static void ExecuteMemPatches(List<IMemPatchFeature> patches)
+        {
+            foreach (var p in patches)
+            {
+                try
+                {
+                    p.TryApply();
+                    p.OnApply();
+                }
+                catch (Exception ex)
+                {
+                    Log.WriteLine($"[FeatureManager] {p.GetType().Name} threw: {ex.Message}");
                 }
             }
         }

@@ -886,6 +886,41 @@ namespace eft_dma_radar.Silk6.Config
             Save();
         }
 
+        // ── VisCheck (PhysX visibility) ──────────────────────────────────────
+        // All visibility-classifier settings persist here so the user's
+        // see-through / force-blocker rule edits survive restart. Defaults
+        // mirror the Arena defaults — the layer mask is conservative
+        // (only layer 16 = player colliders) to avoid silently disabling
+        // vischeck if the user forgets to tune it.
+
+        [JsonPropertyName("visCheckSeeThroughLayerMask")]
+        public uint VisCheckSeeThroughLayerMask { get; set; } = 1u << 16;
+
+        [JsonPropertyName("visCheckGlobalNamePatterns")]
+        public string[] VisCheckGlobalNamePatterns { get; set; } = ["Glass", "Cube (", "PlayerSuperior"];
+
+        [JsonPropertyName("visCheckMapNamePatterns")]
+        public Dictionary<string, string[]> VisCheckMapNamePatterns { get; set; } = new();
+
+        [JsonPropertyName("visCheckGlobalBlockerPatterns")]
+        public string[] VisCheckGlobalBlockerPatterns { get; set; } = [];
+
+        [JsonPropertyName("visCheckMapBlockerPatterns")]
+        public Dictionary<string, string[]> VisCheckMapBlockerPatterns { get; set; } = new();
+
+        [JsonPropertyName("visCheckMaxRayDistance")]
+        public float VisCheckMaxRayDistance { get; set; } = 200f;
+
+        [JsonPropertyName("visCheckBoneHead")]   public bool VisCheckBoneHead   { get; set; } = true;
+        [JsonPropertyName("visCheckBoneChest")]  public bool VisCheckBoneChest  { get; set; } = true;
+        [JsonPropertyName("visCheckBonePelvis")] public bool VisCheckBonePelvis { get; set; } = true;
+
+        [JsonPropertyName("visCheckDiagDumpSnapshot")]  public bool VisCheckDiagDumpSnapshot  { get; set; } = false;
+        [JsonPropertyName("visCheckDiagLogTicks")]      public bool VisCheckDiagLogTicks      { get; set; } = false;
+        [JsonPropertyName("visCheckDiagLogClassifier")] public bool VisCheckDiagLogClassifier { get; set; } = false;
+
+        [JsonPropertyName("traceDmaExceptions")] public bool TraceDmaExceptions { get; set; } = false;
+
         /// <summary>
         /// Save config to disk immediately.
         /// </summary>

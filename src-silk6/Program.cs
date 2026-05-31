@@ -5,6 +5,7 @@
 using Silk.NET.Input.Glfw;
 using Silk.NET.Windowing.Glfw;
 using eft_dma_radar.Silk6.Tarkov;
+using eft_dma_radar.Silk6.Tarkov.Unity.PhysX;
 using System.Net.Http;
 using System.Runtime.Versioning;
 
@@ -66,6 +67,18 @@ namespace eft_dma_radar.Silk6
                 if (Log.EnableDebugLogging)
                     Log.WriteLine("[SilkProgram] Debug logging enabled.");
 
+                // Vischeck — apply persisted classifier rules + worker
+                // toggles + diagnostic-logging flags to the live static
+                // singletons before anything that might attach starts.
+                VisibilityClassifier.LoadFromConfig(Config);
+                VisibilityWorker.LoadFromConfig(Config);
+                VisCheckDiagnostics.LoadFromConfig(Config);
+
+                // Config field is the primary toggle; ExceptionTracer.Install
+                // also honours the SILK_TRACE_DMA_EXCEPTIONS env var as an
+                // override for "I need this on for one launch without editing
+                // config.json" scenarios.
+                if (Config.TraceDmaExceptions) ExceptionTracer.Enabled = true;
                 ExceptionTracer.Install();
 
                 SetHighPerformanceMode();

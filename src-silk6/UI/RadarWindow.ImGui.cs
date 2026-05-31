@@ -690,6 +690,11 @@ namespace eft_dma_radar.Silk6.UI
             if (HideoutPanel.IsOpen)
                 HideoutPanel.Draw();
 
+            // Vischeck windows — own visibility state (toggled via hotkey),
+            // unconditionally drawable so they don't depend on Sidebar UI.
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.VisCheckDebugWindow.Draw();
+            eft_dma_radar.Silk6.Tarkov.Unity.PhysX.CacheViewWindow.Draw();
+
             // Right-dock layout (Players / Loot / Quests) — must be initialized
             // BEFORE those panels' Draw() is called so SetNextWindowPos/Size land.
             RightDock.BeginFrame();
