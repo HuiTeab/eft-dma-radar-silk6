@@ -20,7 +20,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
     /// + 0   8  bytes  magic        = "ARNVPHX1"  (ASCII, no null)
     /// + 8   2  bytes  formatVer    = current = 1
     /// +10   2  bytes  reserved     (zero, future flags)
-    /// +12   4  bytes  bodyCrc32    (CRC32C of bytes 16..EOF-4 â€” header + body)
+    /// +12   4  bytes  bodyCrc32    (CRC32C of bytes 16..EOF-4 — header + body)
     /// +16   8  bytes  fingerprint  (FNV-1a 64 of "unityPlayerVer|mapId|actorBucket")
     /// +24   8  bytes  buildTickMs  (Environment.TickCount64 when originally built)
     /// +32   4  bytes  sourceActorCount
@@ -48,7 +48,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
     /// </code>
     /// <para>
     /// CRC32C is computed over header (excluding the CRC slot itself) + body
-    /// and stored at +12. Mismatch â‡’ corrupted file, discard and rebuild.
+    /// and stored at +12. Mismatch ⇒ corrupted file, discard and rebuild.
     /// </para>
     /// <para>
     /// Atomic write: serialise to <c>&lt;path&gt;.tmp</c> first, then
@@ -87,7 +87,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
         /// Returns the directory that holds all per-map snapshot files
         /// (<c>%AppData%\eft-dma-radar-silk6\physx-snapshots</c>). Used by
         /// <see cref="EnumerateSnapshots"/> and the Cache View "Saved
-        /// Snapshots" table â€” anywhere that needs to list files without
+        /// Snapshots" table — anywhere that needs to list files without
         /// knowing a specific map id up front.
         /// </summary>
         public static string GetSnapshotsDirectory() => Path.Combine(
@@ -96,7 +96,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             "physx-snapshots");
 
         /// <summary>
-        /// One row in the "Saved Snapshots" table â€” minimal metadata that's
+        /// One row in the "Saved Snapshots" table — minimal metadata that's
         /// cheap to compute from <see cref="FileInfo"/>. <see cref="MapId"/>
         /// is the same string the snapshot was saved under (i.e. recoverable
         /// from the filename, post-sanitization).
@@ -114,7 +114,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
         /// </summary>
         /// <remarks>
         /// Each row's <see cref="SnapshotFileInfo.MapId"/> is the filename
-        /// stem â€” which is the sanitized form of the original map id. For
+        /// stem — which is the sanitized form of the original map id. For
         /// vanilla Arena map names (<c>Arena_AutoService</c>, etc.) this is
         /// a lossless round-trip; for unusual map names with characters that
         /// got sanitized, the displayed value is the on-disk form.
@@ -139,14 +139,14 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
         /// <summary>
         /// Builds a 64-bit fingerprint that uniquely identifies the
         /// game-build / map combination this snapshot was built for. Mismatch
-        /// on load â‡’ the cached file is for a different game build (Unity
+        /// on load ⇒ the cached file is for a different game build (Unity
         /// bump) or a different map and must not be used.
         /// <para>
         /// V1 fingerprint inputs: <c>UnityPlayer.dll FileVersion</c> +
         /// <c>mapId</c>. Catches the common stale case (BSG patches the game,
         /// Unity DLL version bumps, cache becomes invalid). Doesn't catch
         /// content-only patches that change map geometry without bumping
-        /// Unity â€” empirically rare; if we observe stale-cache issues in the
+        /// Unity — empirically rare; if we observe stale-cache issues in the
         /// wild a future version can add an actor-count-bucket validator
         /// (would require a cheap pre-load probe of the live scene).
         /// </para>
@@ -159,7 +159,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Deletes the on-disk snapshot for <paramref name="mapId"/>, if one
-        /// exists. Best-effort â€” returns true on success or when nothing was
+        /// exists. Best-effort — returns true on success or when nothing was
         /// there to delete; false (with a log line) on permission / I/O
         /// errors. Used by the debug UI's "Invalidate Cache" button and by
         /// any future "force fresh build" code path.
@@ -183,7 +183,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Save ─────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Serialise <paramref name="snap"/> to disk under the path returned
@@ -202,12 +202,12 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             {
                 EnsureDirectoryExists(path);
 
-                // FileAccess.ReadWrite (not just Write) â€” we seek back after the body
+                // FileAccess.ReadWrite (not just Write) — we seek back after the body
                 // is written to compute and stamp the CRC32 over what we just wrote.
                 using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
                 using (var bw = new BinaryWriter(fs, Encoding.UTF8, leaveOpen: false))
                 {
-                    // Reserve the header â€” the CRC at +12 isn't computable yet.
+                    // Reserve the header — the CRC at +12 isn't computable yet.
                     bw.Write(Magic);                 // +0  8 bytes
                     bw.Write(FormatVer);             // +8  2 bytes
                     bw.Write((ushort)0);             // +10 2 bytes reserved
@@ -245,7 +245,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                     bw.Flush();
                 }
 
-                // Atomic publish â€” overwrite any previous snapshot for this map.
+                // Atomic publish — overwrite any previous snapshot for this map.
                 File.Move(tmp, path, overwrite: true);
 
                 long size = new FileInfo(path).Length;
@@ -253,7 +253,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                     $"[SnapshotSerializer] Saved {snap.MapId}: " +
                     $"{snap.Actors.Length} actors / {snap.Meshes.Length} meshes / " +
                     $"{snap.ConvexMeshes.Length} convex / " +
-                    $"{snap.HeightFields.Length} hfs, {size / 1024} KB â†’ {path}");
+                    $"{snap.HeightFields.Length} hfs, {size / 1024} KB → {path}");
                 return true;
             }
             catch (Exception ex)
@@ -264,7 +264,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Load ─────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Try to load + validate the snapshot for <paramref name="mapId"/>.
@@ -279,7 +279,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
         /// Pass <c>requireFingerprint: false</c> when loading a snapshot for
         /// offline inspection (Cache View) where no live UnityPlayer version
         /// is available to construct the expected fingerprint. Magic, version,
-        /// and CRC checks still run â€” only the game/map fingerprint is skipped.
+        /// and CRC checks still run — only the game/map fingerprint is skipped.
         /// </para>
         /// </summary>
         public static bool TryLoad(
@@ -326,13 +326,13 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                     return false;
                 }
 
-                // Validate CRC before parsing anything â€” guards against partial / corrupt files.
+                // Validate CRC before parsing anything — guards against partial / corrupt files.
                 long bodyLen = fs.Length - HeaderBytes;
                 fs.Seek(HeaderBytes, SeekOrigin.Begin);
                 uint actualCrc = ComputeCrcFromStream(fs, bodyLen);
                 if (actualCrc != expectedCrc)
                 {
-                    error = $"CRC mismatch (file=0x{expectedCrc:X8}, computed=0x{actualCrc:X8}) â€” corrupted";
+                    error = $"CRC mismatch (file=0x{expectedCrc:X8}, computed=0x{actualCrc:X8}) — corrupted";
                     return false;
                 }
 
@@ -348,7 +348,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                 {
                     error = $"fingerprint mismatch (file=0x{fingerprint:X16}, " +
                             $"expected=0x{expectedFingerprint:X16}; mapId='{mapIdRead}', " +
-                            $"unityVer='{unityVerRead}', sourceActors={sourceActorCount}) â€” game/map changed";
+                            $"unityVer='{unityVerRead}', sourceActors={sourceActorCount}) — game/map changed";
                     return false;
                 }
 
@@ -396,7 +396,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                     HeightFields     = hfs,
                     BuildTickMs      = buildTickMs,
                     MapId            = mapIdRead,
-                    NpPhysics        = 0, // not persisted â€” diagnostic only
+                    NpPhysics        = 0, // not persisted — diagnostic only
                     SourceActorCount = sourceActorCount,
                 };
 
@@ -404,7 +404,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                 Log.WriteLine(
                     $"[SnapshotSerializer] Loaded {mapId}: " +
                     $"{actorCount} actors / {meshCount} meshes / {hfCount} hfs, " +
-                    $"{size / 1024} KB â† {path}");
+                    $"{size / 1024} KB ← {path}");
                 return true;
             }
             catch (Exception ex)
@@ -414,11 +414,11 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Per-record helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Per-record helpers ───────────────────────────────────────────────
 
         private static void WriteActor(BinaryWriter bw, CachedActor a)
         {
-            // PxTransform = 28 bytes (Quaternion 16 + Vector3 12) â€” write each field
+            // PxTransform = 28 bytes (Quaternion 16 + Vector3 12) — write each field
             // explicitly so we don't depend on struct memory layout serialising
             // identically across runtimes.
             bw.Write(a.WorldTransform.Rotation.X);
@@ -440,7 +440,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             bw.Write(a.ShapeGroupMask);
 
             // V2 additions: per-actor Name + UnityLayer. BinaryWriter.Write(string)
-            // writes a 7-bit-encoded length prefix followed by UTF-8 bytes â€”
+            // writes a 7-bit-encoded length prefix followed by UTF-8 bytes —
             // compact for the typical short GameObject name, no per-record
             // padding wasted on empty strings.
             bw.Write(a.Name ?? string.Empty);
@@ -483,7 +483,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
                 ShapeGroupMask   = groupMask,
                 Name             = name,
                 UnityLayer       = unityLayer,
-                // Not persisted â€” classifier rules are runtime-tunable, so
+                // Not persisted — classifier rules are runtime-tunable, so
                 // we always recompute on load against the current ruleset.
                 // Means rule changes apply on next session without needing
                 // to invalidate the on-disk snapshot.
@@ -532,7 +532,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             };
         }
 
-        // â”€â”€ V3: ConvexMesh persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── V3: ConvexMesh persistence ───────────────────────────────────────
 
         private static void WriteConvexMesh(BinaryWriter bw, CachedConvexMesh m)
         {
@@ -625,7 +625,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             };
         }
 
-        // â”€â”€ Primitive helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Primitive helpers ────────────────────────────────────────────────
 
         private static void WriteVec3(BinaryWriter bw, Vector3 v)
         {
@@ -653,7 +653,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             return Encoding.UTF8.GetString(bytes);
         }
 
-        // â”€â”€ CRC helper â€” chunked so big files don't allocate one big buffer â”€â”€
+        // ── CRC helper — chunked so big files don't allocate one big buffer ──
         // Standard IEEE-802.3 CRC32 (reflected polynomial 0xEDB88320). Inlined
         // to avoid pulling in System.IO.Hashing as a NuGet dependency for one
         // checksum function; the table is built once at type init.
@@ -690,7 +690,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             return c ^ 0xFFFFFFFFu;
         }
 
-        // â”€â”€ Fingerprint hash â€” FNV-1a 64 â€” small + deterministic + zero deps â”€â”€
+        // ── Fingerprint hash — FNV-1a 64 — small + deterministic + zero deps ──
 
         private static ulong Fnv1a64(ReadOnlySpan<byte> bytes)
         {
@@ -705,7 +705,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
             return h;
         }
 
-        // â”€â”€ Filesystem plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Filesystem plumbing ─────────────────────────────────────────────
 
         private static void EnsureDirectoryExists(string filePath)
         {
@@ -717,7 +717,7 @@ namespace eft_dma_radar.Silk6.Tarkov.Unity.PhysX
         private static void TryDeleteQuiet(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); }
-            catch { /* swallow â€” best-effort cleanup */ }
+            catch { /* swallow — best-effort cleanup */ }
         }
 
         /// <summary>
